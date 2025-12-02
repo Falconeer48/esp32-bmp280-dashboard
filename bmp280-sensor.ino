@@ -489,7 +489,9 @@ void setup() {
     page += "          position: 'right',";
     page += "          title: { display: true, text: 'Pressure (hPa)' },";
     page += "          grid: { drawOnChartArea: false },";
-    page += "          beginAtZero: false";
+    page += "          beginAtZero: false,";
+    page += "          min: 985,";
+    page += "          max: 1015";
     page += "        }";
     page += "      }";
     page += "    }";
@@ -517,15 +519,6 @@ void setup() {
     page += "    chart.data.labels = labels;";
     page += "    chart.data.datasets[0].data = tempData;";
     page += "    chart.data.datasets[1].data = pressureData;";
-    page += "    // Update pressure axis to be within 5 of current reading";
-    page += "    if (pressureData.length > 0) {";
-    page += "      const validPressures = pressureData.filter(p => !isNaN(p));";
-    page += "      if (validPressures.length > 0) {";
-    page += "        const currentPressure = validPressures[validPressures.length - 1];";
-    page += "        chart.options.scales.y1.min = currentPressure - 5;";
-    page += "        chart.options.scales.y1.max = currentPressure + 5;";
-    page += "      }";
-    page += "    }";
     page += "    chart.update();";
     page += "  }).catch(err => console.error('Error loading data:', err));";
     page += "}";
@@ -536,15 +529,6 @@ void setup() {
     page += "    updateTextWithFade('pressureValue', data.pressure.toFixed(2));";
     page += "    updateTextWithFade('altitudeValue', data.altitude.toFixed(2));";
     page += "    document.getElementById('timestampValue').textContent = data.timestamp;";
-    page += "    // Update pressure axis to be within 5 of current reading";
-    page += "    if (chart && data.pressure) {";
-    page += "      const currentPressure = parseFloat(data.pressure);";
-    page += "      if (!isNaN(currentPressure)) {";
-    page += "        chart.options.scales.y1.min = currentPressure - 5;";
-    page += "        chart.options.scales.y1.max = currentPressure + 5;";
-    page += "        chart.update('none');";
-    page += "      }";
-    page += "    }";
     
     page += "    const sensorOk = data.sensorOk;";
     
@@ -596,32 +580,23 @@ void setup() {
     
     page += "</body></html>";
     
+    // Debug: Check page completeness
+    int pageLen = page.length();
+    Serial.print("HTML page length: ");
+    Serial.println(pageLen);
+    Serial.print("Free heap before send: ");
+    Serial.println(ESP.getFreeHeap());
+    
     // Verify page is complete
     if (!page.endsWith("</html>")) {
-      if (SERIAL_VERBOSE) Serial.println("WARNING: Page String may be incomplete!");
+      Serial.println("ERROR: Page String is incomplete!");
+      Serial.print("Page ends with: ");
+      Serial.println(page.substring(max(0, pageLen - 50)));
+      return;  // Don't send incomplete page
     }
     
-    // Send the page - use chunked transfer for large pages
-    int pageLen = page.length();
-    if (pageLen > 30000) {
-      // Send in chunks for very large pages
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      int chunkSize = 1000;
-      for (int i = 0; i < pageLen; i += chunkSize) {
-        int endPos = min(i + chunkSize, pageLen);
-        server.sendContent(page.substring(i, endPos));
-      }
-      server.sendContent("");
-    } else {
-      // Send normally for smaller pages
-      server.send(200, "text/html", page);
-    }
-    
-    if (SERIAL_VERBOSE) {
-      Serial.print("Page sent, length: ");
-      Serial.println(pageLen);
-    }
+    // Send the page - simple send like working fridge sketch
+    server.send(200, "text/html", page);
   });
   
   // Only start mDNS and web server if WiFi is connected
