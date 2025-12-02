@@ -472,9 +472,7 @@ void setup() {
     page += "      scales: {";
     page += "        x: {";
     page += "          display: true,";
-    page += "          title: { display: true, text: 'Time' },";
-    page += "          min: 0,";
-    page += "          max: 180";  // 3 hours in minutes
+    page += "          title: { display: true, text: 'Time' }";
     page += "        },";
     page += "        y: {";
     page += "          type: 'linear',";
@@ -494,7 +492,6 @@ void setup() {
     page += "          beginAtZero: false,";
     page += "          min: 950,";
     page += "          max: 1030";
-    page += "        },";
     page += "        }";
     page += "      }";
     page += "    }";
