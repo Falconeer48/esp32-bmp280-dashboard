@@ -52,6 +52,7 @@ float altitude = 0.0;
 // MQTT topics (matching original sketch)
 const char* topic_temperature = "home/bmp280/temperature";
 const char* topic_pressure = "home/bmp280/pressure";
+const char* topic_status = "home/bmp280/status";
 
 unsigned long lastRead = 0;
 const unsigned long interval = 60000;  // 60 seconds - MQTT publish interval
@@ -84,6 +85,11 @@ void publish_mqtt_discovery() {
   // Publish the MQTT discovery config for pressure
   client.publish("homeassistant/sensor/bmp280_pressure/config",
                  "{\"name\": \"BMP280 Pressure\", \"state_topic\": \"home/bmp280/pressure\", \"unit_of_measurement\": \"hPa\", \"device_class\": \"pressure\"}",
+                 true);  // The true flag means to retain the message
+
+  // Publish the MQTT discovery config for sensor status
+  client.publish("homeassistant/binary_sensor/bmp280_status/config",
+                 "{\"name\": \"BMP280 Status\", \"state_topic\": \"home/bmp280/status\", \"device_class\": \"connectivity\", \"payload_on\": \"online\", \"payload_off\": \"offline\"}",
                  true);  // The true flag means to retain the message
 }
 
@@ -455,8 +461,7 @@ void setup() {
     page += "    type: 'line',";
     page += "    data: { labels: [], datasets: [";
     page += "      { label: 'Temperature (°C)', data: [], borderColor: '#667eea', backgroundColor: 'rgba(102, 126, 234, 0.1)', tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 0, pointStyle: false, showLine: true, yAxisID: 'y' },";
-    page += "      { label: 'Pressure (hPa)', data: [], borderColor: '#f093fb', backgroundColor: 'rgba(240, 147, 251, 0.1)', tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 0, pointStyle: false, showLine: true, yAxisID: 'y1' },";
-    page += "      { label: 'Altitude (m)', data: [], borderColor: '#4facfe', backgroundColor: 'rgba(79, 172, 254, 0.1)', tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 0, pointStyle: false, showLine: true, yAxisID: 'y2' }";
+    page += "      { label: 'Pressure (hPa)', data: [], borderColor: '#f093fb', backgroundColor: 'rgba(240, 147, 251, 0.1)', tension: 0.4, fill: true, pointRadius: 0, pointHoverRadius: 0, pointStyle: false, showLine: true, yAxisID: 'y1' }";
     page += "    ] },";
     page += "    options: {";
     page += "      responsive: true,";
@@ -477,8 +482,8 @@ void setup() {
     page += "          position: 'left',";
     page += "          title: { display: true, text: 'Temperature (°C)' },";
     page += "          beginAtZero: false,";
-    page += "          suggestedMin: -10,";
-    page += "          suggestedMax: 50";
+    page += "          min: 15,";
+    page += "          max: 40";
     page += "        },";
     page += "        y1: {";
     page += "          type: 'linear',";
@@ -487,12 +492,9 @@ void setup() {
     page += "          title: { display: true, text: 'Pressure (hPa)' },";
     page += "          grid: { drawOnChartArea: false },";
     page += "          beginAtZero: false,";
-    page += "          suggestedMin: 800,";
-    page += "          suggestedMax: 1100";
+    page += "          min: 950,";
+    page += "          max: 1030";
     page += "        },";
-    page += "        y2: {";
-    page += "          type: 'linear',";
-    page += "          display: false";
     page += "        }";
     page += "      }";
     page += "    }";
@@ -503,26 +505,23 @@ void setup() {
     page += "function loadData() {";
     page += "  if (!chart) return;";
     page += "  fetch('/data').then(r => r.json()).then(result => {";
-    page += "    const labels = []; const tempData = []; const pressureData = []; const altitudeData = [];";
+    page += "    const labels = []; const tempData = []; const pressureData = [];";
     page += "    if (result.data && result.data.length > 0) {";
     page += "      result.data.forEach(item => {";
     page += "        const date = new Date(item.t * 1000);";  // epoch seconds → ms
     page += "        const label = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });";
     page += "        const tempValid = item.temperature > -100 && item.temperature < 100;";
     page += "        const pressureValid = item.pressure > 0 && item.pressure < 2000;";
-    page += "        const altitudeValid = item.altitude > -1000 && item.altitude < 10000;";
-    page += "        if (tempValid || pressureValid || altitudeValid) {";
+    page += "        if (tempValid || pressureValid) {";
     page += "          labels.push(label);";
     page += "          tempData.push(tempValid ? parseFloat(item.temperature) : NaN);";
     page += "          pressureData.push(pressureValid ? parseFloat(item.pressure) : NaN);";
-    page += "          altitudeData.push(altitudeValid ? parseFloat(item.altitude) : NaN);";
     page += "        }";
     page += "      });";
     page += "    }";
     page += "    chart.data.labels = labels;";
     page += "    chart.data.datasets[0].data = tempData;";
     page += "    chart.data.datasets[1].data = pressureData;";
-    page += "    chart.data.datasets[2].data = altitudeData;";
     page += "    chart.update();";
     page += "  }).catch(err => console.error('Error loading data:', err));";
     page += "}";
@@ -649,14 +648,19 @@ void loop() {
     }
 
     // Publish sensor data to MQTT topics
-    if (sensorOk && client.connected()) {
-      char tempString[8];
-      dtostrf(temperature, 1, 2, tempString);
-      client.publish(topic_temperature, tempString);
+    if (client.connected()) {
+      if (sensorOk) {
+        char tempString[8];
+        dtostrf(temperature, 1, 2, tempString);
+        client.publish(topic_temperature, tempString);
 
-      char pressureString[8];
-      dtostrf(pressure, 1, 2, pressureString);
-      client.publish(topic_pressure, pressureString);
+        char pressureString[8];
+        dtostrf(pressure, 1, 2, pressureString);
+        client.publish(topic_pressure, pressureString);
+      }
+      
+      // Always publish status (online/offline) so you can trigger on sensor failure
+      client.publish(topic_status, sensorOk ? "online" : "offline", true);  // Retain status
     }
     
     // Save to graph data
