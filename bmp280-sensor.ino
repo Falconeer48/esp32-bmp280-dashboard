@@ -489,9 +489,7 @@ void setup() {
     page += "          position: 'right',";
     page += "          title: { display: true, text: 'Pressure (hPa)' },";
     page += "          grid: { drawOnChartArea: false },";
-    page += "          beginAtZero: false,";
-    page += "          min: 985,";
-    page += "          max: 1015";
+    page += "          beginAtZero: false";
     page += "        }";
     page += "      }";
     page += "    }";
@@ -519,6 +517,14 @@ void setup() {
     page += "    chart.data.labels = labels;";
     page += "    chart.data.datasets[0].data = tempData;";
     page += "    chart.data.datasets[1].data = pressureData;";
+    page += "    if (pressureData.length > 0) {";
+    page += "      const validPressures = pressureData.filter(p => !isNaN(p));";
+    page += "      if (validPressures.length > 0) {";
+    page += "        const currentPressure = validPressures[validPressures.length - 1];";
+    page += "        chart.options.scales.y1.min = currentPressure - 5;";
+    page += "        chart.options.scales.y1.max = currentPressure + 5;";
+    page += "      }";
+    page += "    }";
     page += "    chart.update();";
     page += "  }).catch(err => console.error('Error loading data:', err));";
     page += "}";
@@ -529,6 +535,14 @@ void setup() {
     page += "    updateTextWithFade('pressureValue', data.pressure.toFixed(2));";
     page += "    updateTextWithFade('altitudeValue', data.altitude.toFixed(2));";
     page += "    document.getElementById('timestampValue').textContent = data.timestamp;";
+    page += "    if (chart && data.pressure) {";
+    page += "      const currentPressure = parseFloat(data.pressure);";
+    page += "      if (!isNaN(currentPressure)) {";
+    page += "        chart.options.scales.y1.min = currentPressure - 5;";
+    page += "        chart.options.scales.y1.max = currentPressure + 5;";
+    page += "        chart.update('none');";
+    page += "      }";
+    page += "    }";
     
     page += "    const sensorOk = data.sensorOk;";
     
