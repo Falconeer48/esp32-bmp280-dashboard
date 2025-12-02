@@ -595,7 +595,33 @@ void setup() {
     page += "</script>";
     
     page += "</body></html>";
-    server.send(200, "text/html", page);
+    
+    // Verify page is complete
+    if (!page.endsWith("</html>")) {
+      if (SERIAL_VERBOSE) Serial.println("WARNING: Page String may be incomplete!");
+    }
+    
+    // Send the page - use chunked transfer for large pages
+    int pageLen = page.length();
+    if (pageLen > 30000) {
+      // Send in chunks for very large pages
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      int chunkSize = 1000;
+      for (int i = 0; i < pageLen; i += chunkSize) {
+        int endPos = min(i + chunkSize, pageLen);
+        server.sendContent(page.substring(i, endPos));
+      }
+      server.sendContent("");
+    } else {
+      // Send normally for smaller pages
+      server.send(200, "text/html", page);
+    }
+    
+    if (SERIAL_VERBOSE) {
+      Serial.print("Page sent, length: ");
+      Serial.println(pageLen);
+    }
   });
   
   // Only start mDNS and web server if WiFi is connected
